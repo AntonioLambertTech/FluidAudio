@@ -115,6 +115,13 @@ public actor PocketTtsManager {
         }
     }
 
+    public func buildVoiceCache(
+    voiceData: PocketTtsVoiceData
+) async throws -> PocketTtsSynthesizer.KVCacheState {
+    return try await PocketTtsSynthesizer.withModelStore(modelStore) {
+        try await PocketTtsSynthesizer.buildVoiceCache(voiceData: voiceData)
+    }
+}
     /// Synthesize text and return detailed results including frame count and EOS info.
     public func synthesizeDetailed(
         text: String,
