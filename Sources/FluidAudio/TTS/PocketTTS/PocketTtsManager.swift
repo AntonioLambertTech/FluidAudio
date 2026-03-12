@@ -95,6 +95,7 @@ public actor PocketTtsManager {
     public func synthesize(
         text: String,
         voiceData: PocketTtsVoiceData,
+        voiceOnlyCache: PocketTtsSynthesizer.KVCacheState? = nil,
         temperature: Float = PocketTtsConstants.temperature,
         deEss: Bool = true
     ) async throws -> Data {
@@ -107,7 +108,8 @@ public actor PocketTtsManager {
                 text: text,
                 voiceData: voiceData,
                 temperature: temperature,
-                deEss: deEss
+                deEss: deEss,
+                voiceOnlyCache: voiceOnlyCache
             )
             return result.audio
         }
