@@ -242,6 +242,10 @@ public struct PocketTtsSynthesizer {
         // 3. Set up random number generator (seeded or system entropy)
         var rng = SeededRNG(seed: seed ?? UInt64.random(in: 0...UInt64.max))
 
+        let condModel = try await store.condStep()
+        let stepModel = try await store.flowlmStep()
+        let flowModel = try await store.flowDecoder()
+        let mimiModel = try await store.mimiDecoder()
         // Voice-only KV cache baseline — built once, reused on every chunk/call
         // Build it now if not passed in (costs ~4s once, saves ~4s on every subsequent utterance)
         var capturedVoiceCache: KVCacheState?
@@ -258,10 +262,7 @@ public struct PocketTtsSynthesizer {
         }
 
         // 4. Load models
-        let condModel = try await store.condStep()
-        let stepModel = try await store.flowlmStep()
-        let flowModel = try await store.flowDecoder()
-        let mimiModel = try await store.mimiDecoder()
+    
 
         // 5. Load Mimi initial state (continuous across chunks)
         let repoDir = try await store.repoDir()
