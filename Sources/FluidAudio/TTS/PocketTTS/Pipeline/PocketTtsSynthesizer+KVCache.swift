@@ -38,6 +38,226 @@ extension PocketTtsSynthesizer {
         return KVCacheState(caches: caches, positions: positions)
     }
 
+    /// Deep-copy a KVCacheState so the original voice baseline is never mutated.
+    static func deepCopyKVCacheState(_ source: KVCacheState) throws -> KVCacheState {
+        var caches: [MLMultiArray] = []
+        var positions: [MLMultiArray] = []
+
+        for cache in source.caches {
+            let copy = try MLMultiArray(shape: cache.shape, dataType: cache.dataType)
+            let src = cache.dataPointer.bindMemory(to: Float.self, capacity: cache.count)
+            let dst = copy.dataPointer.bindMemory(to: Float.self, capacity: copy.count)
+            dst.update(from: src, count: cache.count)
+            caches.append(copy)
+        }
+
+        for pos in source.positions {
+            let copy = try MLMultiArray(shape: pos.shape, dataType: pos.dataType)
+            copy[0] = pos[0]
+            positions.append(copy)
+        }
+
+        return KVCacheState(caches: caches, positions: positions)
+    }
+
+    /// Run the conditioning step model for a single token, updating the KV cache in place.
+    static func runCondStep(
+        conditioning: MLMultiArray,
+        state: inout KVCacheState,
+        model: MLModel
+    ) async throws {
+        var inputDict: [String: Any] = [
+            "conditioning": conditioning
+        ]
+
+        for i in 0..<PocketTtsConstants.kvCacheLayers {
+            inputDict["cache\(i)"] = state.caches[i]
+            inputDict["position\(i)"] = state.positions[i]
+        }
+
+        let input = try MLDictionaryFeatureProvider(dictionary: inputDict)
+        let output = try await model.compatPrediction(from: input, options: MLPredictionOptions())
+
+        for i in 0..<PocketTtsConstants.kvCacheLayers {
+            guard let newCache = output.featureValue(for: CondStepKeys.cacheKeys[i])?.multiArrayValue
+            else {
+                throw PocketTTSError.processingFailed(
+                    "Missing cond_step cache output: \(CondStepKeys.cacheKeys[i])")
+            }
+            guard let newPos = output.featureValue(for: CondStepKeys.positionKeys[i])?.multiArrayValue
+            else {
+                throw PocketTTSError.processingFailed(
+                    "Missing cond_step position output: \(CondStepKeys.positionKeys[i])")
+            }
+            state.caches[i] = newCache
+            state.positions[i] = newPos
+        }
+    }
+
+    /// Prefill the KV cache with voice and text conditioning tokens.
+    ///
+    /// Pass `voiceOnlyCache` to skip the expensive voice prefill on subsequent
+    /// calls within the same session — only text tokens are added on top.
+    /// The voice-only baseline is built once and stored by PocketTtsSynthesizer.
+    static func prefillKVCache(
+        voiceData: PocketTtsVoiceData,
+        textEmbeddings: [[Float]],
+        model: MLModel,
+        voiceOnlyCache: KVCacheState? = nil
+    ) async throws -> KVCacheState {
+        let dim = PocketTtsConstants.embeddingDim
+
+        if let voiceCache = voiceOnlyCache {
+            // Fast path — voice already prefilled, just add text tokens on top.
+            // Deep-copy so we don't mutate the stored baseline.
+            var state = try deepCopyKVCacheState(voiceCache)
+
+            for embedding in textEmbeddings {
+                let token = try createConditioningToken(from: embedding, offset: 0, dim: dim)
+                try await runCondStep(conditioning: token, state: &state, model: model)
+            }
+
+            let finalPos = state.positions[0][0].floatValue
+            logger.info("KV cache prefilled to position \(Int(finalPos)) (voice cache reused ⚡️)")
+            return state
+        }
+
+        // Slow path — first utterance, build full cache from scratch.
+        var state = try emptyKVCacheState()
+
+        // Voice tokens first (positions 0..124)
+        let voiceTokenCount = voiceData.promptLength
+        for tokenIdx in 0..<voiceTokenCount {
+            let token = try createConditioningToken(
+                from: voiceData.audioPrompt,
+                offset: tokenIdx * dim,
+                dim: dim
+            )
+            try await runCondStep(conditioning: token, state: &state, model: model)
+        }
+
+        let voicePos = state.positions[0][0].floatValue
+        logger.info("KV cache voice baseline built at position \(Int(voicePos)) — will reuse for this call")
+
+        // Text tokens next
+        for embedding in textEmbeddings {
+            let token = try createConditioningToken(from: embedding, offset: 0, dim: dim)
+            try await runCondStep(conditioning: token, state: &state, model: model)
+        }
+
+        let finalPos = state.positions[0][0].floatValue
+        logger.info("KV cache prefilled to position \(Int(finalPos))")
+
+        return state
+    }
+
+    /// Create a [1, 1, 1024] MLMultiArray from a float slice.
+    private static func createConditioningToken(
+        from source: [Float], offset: Int, dim: Int
+    ) throws -> MLMultiArray {
+        let array = try MLMultiArray(
+            shape: [1, 1, NSNumber(value: dim)], dataType: .float32)
+        let ptr = array.dataPointer.bindMemory(to: Float.self, capacity: dim)
+        source.withUnsafeBufferPointer { buffer in
+            guard let base = buffer.baseAddress else { return }
+            ptr.update(from: base.advanced(by: offset), count: dim)
+        }
+        return array
+    }
+
+    /// Run the generation step model, returning transformer output and EOS logit.
+    static func runFlowLMStep(
+        sequence: MLMultiArray,
+        bosEmb: MLMultiArray,
+        state: inout KVCacheState,
+        model: MLModel
+    ) async throws -> (transformerOut: MLMultiArray, eosLogit: Float) {
+        var inputDict: [String: Any] = [
+            "sequence": sequence,
+            "bos_emb": bosEmb,
+        ]
+
+        for i in 0..<PocketTtsConstants.kvCacheLayers {
+            inputDict["cache\(i)"] = state.caches[i]
+            inputDict["position\(i)"] = state.positions[i]
+        }
+
+        let input = try MLDictionaryFeatureProvider(dictionary: inputDict)
+        let output = try await model.compatPrediction(from: input, options: MLPredictionOptions())
+
+        // Extract transformer output
+        guard let transformerOut = output.featureValue(for: FlowLMStepKeys.transformerOut)?.multiArrayValue
+        else {
+            throw PocketTTSError.processingFailed("Missing flowlm_step transformer output")
+        }
+
+        // Extract EOS logit
+        guard let eosArray = output.featureValue(for: FlowLMStepKeys.eosLogit)?.multiArrayValue
+        else {
+            throw PocketTTSError.processingFailed("Missing flowlm_step EOS logit")
+        }
+        let eosLogit = eosArray[0].floatValue
+
+        // Update caches and positions
+        for i in 0..<PocketTtsConstants.kvCacheLayers {
+            guard
+                let newCache = output.featureValue(for: FlowLMStepKeys.cacheKeys[i])?.multiArrayValue
+            else {
+                throw PocketTTSError.processingFailed(
+                    "Missing flowlm_step cache output: \(FlowLMStepKeys.cacheKeys[i])")
+            }
+            guard let newPos = output.featureValue(for: FlowLMStepKeys.positionKeys[i])?.multiArrayValue
+            else {
+                throw PocketTTSError.processingFailed(
+                    "Missing flowlm_step position output: \(FlowLMStepKeys.positionKeys[i])")
+            }
+            state.caches[i] = newCache
+            state.positions[i] = newPos
+        }
+
+        return (transformerOut: transformerOut, eosLogit: eosLogit)
+    }
+}
+/*@preconcurrency import CoreML
+import Foundation
+
+extension PocketTtsSynthesizer {
+
+    /// Mutable KV cache state passed through conditioning and generation steps.
+    struct KVCacheState {
+        /// 6 KV cache arrays, each [2, 1, 200, 16, 64].
+        var caches: [MLMultiArray]
+        /// 6 position counters, each [1].
+        var positions: [MLMultiArray]
+    }
+
+    /// Create an empty KV cache state (all zeros, positions at 0).
+    static func emptyKVCacheState() throws -> KVCacheState {
+        let layers = PocketTtsConstants.kvCacheLayers
+        let shape: [NSNumber] = [
+            2, 1, NSNumber(value: PocketTtsConstants.kvCacheMaxLen), 16, 64,
+        ]
+
+        var caches: [MLMultiArray] = []
+        var positions: [MLMultiArray] = []
+        caches.reserveCapacity(layers)
+        positions.reserveCapacity(layers)
+
+        for _ in 0..<layers {
+            let cache = try MLMultiArray(shape: shape, dataType: .float32)
+            let cachePtr = cache.dataPointer.bindMemory(
+                to: Float.self, capacity: cache.count)
+            cachePtr.initialize(repeating: 0, count: cache.count)
+            caches.append(cache)
+
+            let pos = try MLMultiArray(shape: [1], dataType: .float32)
+            pos[0] = NSNumber(value: Float(0))
+            positions.append(pos)
+        }
+
+        return KVCacheState(caches: caches, positions: positions)
+    }
+
     /// Run the conditioning step model for a single token, updating the KV cache in place.
     static func runCondStep(
         conditioning: MLMultiArray,
@@ -172,4 +392,4 @@ extension PocketTtsSynthesizer {
 
         return (transformerOut: transformerOut, eosLogit: eosLogit)
     }
-}
+}*/
