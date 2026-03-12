@@ -52,7 +52,8 @@ public struct PocketTtsSynthesizer {
         voice: String = PocketTtsConstants.defaultVoice,
         temperature: Float = PocketTtsConstants.temperature,
         seed: UInt64? = nil,
-        deEss: Bool = true
+        deEss: Bool = true,
+        voiceOnlyCache: KVCacheState? = nil
     ) async throws -> SynthesisResult {
         let store = try currentModelStore()
 
