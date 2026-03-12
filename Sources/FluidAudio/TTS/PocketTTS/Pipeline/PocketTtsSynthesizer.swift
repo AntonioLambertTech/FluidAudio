@@ -385,21 +385,6 @@ public struct PocketTtsSynthesizer {
         )
     }
 
-    public func synthesize(
-    text: String,
-    voiceData: PocketTtsVoiceData,
-    voiceOnlyCache: PocketTtsSynthesizer.KVCacheState? = nil
-) async throws -> Data {
-    try await PocketTtsSynthesizer.withModelStore(modelStore) {
-        let result = try await PocketTtsSynthesizer.synthesize(
-            text: text,
-            voiceData: voiceData,
-            voiceOnlyCache: voiceOnlyCache
-        )
-        return result.audio
-    }
-}
-
     /// Build a voice-only KV cache baseline for a given voiceData.
     /// Call this once when a call starts, then pass the result to every
     /// synthesize(text:voiceData:voiceOnlyCache:) call to skip the ~4s prefill.
