@@ -6,9 +6,9 @@ extension PocketTtsSynthesizer {
     /// Mutable KV cache state passed through conditioning and generation steps.
     public struct KVCacheState {
         /// 6 KV cache arrays, each [2, 1, 200, 16, 64].
-        var caches: [MLMultiArray]
+       public var caches: [MLMultiArray]
         /// 6 position counters, each [1].
-        var positions: [MLMultiArray]
+        public var positions: [MLMultiArray]
     }
 
     /// Create an empty KV cache state (all zeros, positions at 0).
