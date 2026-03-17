@@ -19,7 +19,7 @@ public struct PocketTtsSynthesizer {
         @TaskLocal static var modelStore: PocketTtsModelStore?
     }
 
-    static func withModelStore<T>(
+    public static func withModelStore<T>(
         _ store: PocketTtsModelStore,
         operation: () async throws -> T
     ) async rethrows -> T {
@@ -28,7 +28,7 @@ public struct PocketTtsSynthesizer {
         }
     }
 
-    static func currentModelStore() throws -> PocketTtsModelStore {
+    public static func currentModelStore() throws -> PocketTtsModelStore {
         guard let store = Context.modelStore else {
             throw PocketTTSError.processingFailed(
                 "PocketTtsSynthesizer requires a model store context.")
