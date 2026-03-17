@@ -17,12 +17,12 @@ public enum PocketTtsConstants {
 
     // MARK: - Generation parameters
 
-    public static let numLsdSteps: Int = 8
+    public static let numLsdSteps: Int = 4
     public static let temperature: Float = 0.7
     public static let eosThreshold: Float = -4.0
-    public static let shortTextPadFrames: Int = 3
-    public static let longTextExtraFrames: Int = 1
-    public static let extraFramesAfterDetection: Int = 2
+    public static let shortTextPadFrames: Int = 1
+    public static let longTextExtraFrames: Int = 0
+    public static let extraFramesAfterDetection: Int = 1
     public static let shortTextWordThreshold: Int = 5
     public static let maxTokensPerChunk: Int = 50
 
