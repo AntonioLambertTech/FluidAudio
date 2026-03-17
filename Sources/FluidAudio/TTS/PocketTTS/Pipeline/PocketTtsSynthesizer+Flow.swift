@@ -7,7 +7,7 @@ extension PocketTtsSynthesizer {
     ///
     /// Converts transformer output to a 32-dimensional audio latent
     /// via `numSteps` iterative denoising steps.
-    static func flowDecode(
+    public static func flowDecode(
         transformerOut: MLMultiArray,
         numSteps: Int,
         temperature: Float,
