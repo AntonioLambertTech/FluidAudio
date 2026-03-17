@@ -16,7 +16,7 @@ import OSLog
 public actor PocketTtsManager {
 
     private let logger = AppLogger(category: "PocketTtsManager")
-    private let modelStore: PocketTtsModelStore
+    public let modelStore: PocketTtsModelStore
     private var defaultVoice: String
     private var isInitialized = false
 
