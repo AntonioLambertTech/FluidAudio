@@ -405,7 +405,7 @@ public struct PocketTtsSynthesizer {
     // MARK: - Text Processing
 
     /// Normalize a text chunk for PocketTTS (matching Python `prepare_text_prompt`).
-    static func normalizeText(_ text: String) -> (text: String, framesAfterEos: Int) {
+    public static func normalizeText(_ text: String) -> (text: String, framesAfterEos: Int) {
         var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
         // Collapse whitespace
         result = result.replacingOccurrences(
@@ -678,7 +678,7 @@ public struct PocketTtsSynthesizer {
     // MARK: - Embedding
 
     /// Look up text token embeddings from the embedding table.
-    static func embedTokens(
+    public static func embedTokens(
         _ tokenIds: [Int], constants: PocketTtsConstantsBundle
     ) -> [[Float]] {
         let dim = PocketTtsConstants.embeddingDim
@@ -705,7 +705,7 @@ public struct PocketTtsSynthesizer {
     }
 
     /// Create the BOS embedding as an MLMultiArray [32].
-    private static func createBosEmbedding(_ bos: [Float]) throws -> MLMultiArray {
+    public static func createBosEmbedding(_ bos: [Float]) throws -> MLMultiArray {
         let dim = PocketTtsConstants.latentDim
         let array = try MLMultiArray(shape: [NSNumber(value: dim)], dataType: .float32)
         let ptr = array.dataPointer.bindMemory(to: Float.self, capacity: dim)
@@ -717,7 +717,7 @@ public struct PocketTtsSynthesizer {
     }
 
     /// Create a NaN-filled sequence [1, 1, 32] (signals BOS to the model).
-    private static func createNaNSequence() throws -> MLMultiArray {
+    public static func createNaNSequence() throws -> MLMultiArray {
         let dim = PocketTtsConstants.latentDim
         let array = try MLMultiArray(
             shape: [1, 1, NSNumber(value: dim)], dataType: .float32)
@@ -729,7 +729,7 @@ public struct PocketTtsSynthesizer {
     }
 
     /// Create a sequence [1, 1, 32] from a latent vector.
-    private static func createSequenceFromLatent(_ latent: [Float]) throws -> MLMultiArray {
+    public static func createSequenceFromLatent(_ latent: [Float]) throws -> MLMultiArray {
         let dim = PocketTtsConstants.latentDim
         let array = try MLMultiArray(
             shape: [1, 1, NSNumber(value: dim)], dataType: .float32)
