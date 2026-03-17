@@ -99,7 +99,7 @@ extension PocketTtsSynthesizer {
     /// Pass `voiceOnlyCache` to skip the expensive voice prefill on subsequent
     /// calls within the same session — only text tokens are added on top.
     /// The voice-only baseline is built once and stored by PocketTtsSynthesizer.
-    static func prefillKVCache(
+    public static func prefillKVCache(
         voiceData: PocketTtsVoiceData,
         textEmbeddings: [[Float]],
         model: MLModel,
@@ -166,7 +166,7 @@ extension PocketTtsSynthesizer {
     }
 
     /// Run the generation step model, returning transformer output and EOS logit.
-    static func runFlowLMStep(
+    public static func runFlowLMStep(
         sequence: MLMultiArray,
         bosEmb: MLMultiArray,
         state: inout KVCacheState,
