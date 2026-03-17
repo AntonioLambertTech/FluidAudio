@@ -7,7 +7,7 @@ extension PocketTtsSynthesizer {
     ///
     /// Contains 26 tensors that track convolutional history,
     /// attention caches, and partial upsampling buffers.
-    struct MimiState {
+    public struct MimiState {
         var tensors: [String: MLMultiArray]
     }
 
@@ -15,7 +15,7 @@ extension PocketTtsSynthesizer {
     ///
     /// Loads pre-computed initial state tensors from `.bin` files,
     /// using `manifest.json` for shape metadata.
-    static func loadMimiInitialState(from repoDirectory: URL) throws -> MimiState {
+    public static func loadMimiInitialState(from repoDirectory: URL) throws -> MimiState {
         let constantsDir = repoDirectory.appendingPathComponent(ModelNames.PocketTTS.constantsBinDir)
         let stateDir = constantsDir.appendingPathComponent("mimi_init_state")
         let manifestURL = constantsDir.appendingPathComponent("manifest.json")
@@ -68,7 +68,7 @@ extension PocketTtsSynthesizer {
     }
 
     /// Clone a Mimi state for independent use.
-    static func cloneMimiState(_ state: MimiState) throws -> MimiState {
+    public static func cloneMimiState(_ state: MimiState) throws -> MimiState {
         var newTensors: [String: MLMultiArray] = [:]
         for (key, array) in state.tensors {
             let copy = try MLMultiArray(shape: array.shape, dataType: array.dataType)
@@ -97,7 +97,7 @@ extension PocketTtsSynthesizer {
     ///   - state: The streaming state (26 tensors), modified in place.
     ///   - model: The Mimi CoreML model.
     /// - Returns: Audio samples for this frame (1920 samples = 80ms at 24kHz).
-    static func runMimiDecoder(
+    public static func runMimiDecoder(
         latent: [Float],
         state: inout MimiState,
         model: MLModel
