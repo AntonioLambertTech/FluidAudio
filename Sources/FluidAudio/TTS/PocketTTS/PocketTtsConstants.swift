@@ -17,7 +17,7 @@ public enum PocketTtsConstants {
 
     // MARK: - Generation parameters
 
-    public static let numLsdSteps: Int = 4
+    public static let numLsdSteps: Int = 6
     public static let temperature: Float = 0.7
     public static let eosThreshold: Float = -4.0
     public static let shortTextPadFrames: Int = 1
