@@ -127,7 +127,7 @@ public actor PocketTtsManager {
     /// Audio discarded — only KV state kept.
     public func buildWarmCache(
         voiceData: PocketTtsVoiceData,
-        carrier: String = "So I was just thinking about you and"
+        carrier: String = "Testing one two three four five."
     ) async throws -> PocketTtsSynthesizer.KVCacheState {
         return try await PocketTtsSynthesizer.withModelStore(modelStore) {
             let warmCache = try await PocketTtsSynthesizer.buildWarmCache(
@@ -284,7 +284,6 @@ public actor PocketTtsManager {
         try PocketTtsVoiceCloner.loadVoice(from: url)
     }
 }
-
 
 
 
