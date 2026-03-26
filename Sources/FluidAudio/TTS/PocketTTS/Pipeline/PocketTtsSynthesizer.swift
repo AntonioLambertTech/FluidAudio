@@ -401,6 +401,40 @@ public struct PocketTtsSynthesizer {
         )
     }
  
+    /// Build a warm conversation cache by injecting a carrier sentence during ringing.
+    /// Everything runs inside the synthesizer's isolation — no Sendable issues.
+    /// Audio is discarded. Only the KV state is returned.
+    public static func buildWarmCache(
+        voiceData: PocketTtsVoiceData,
+        carrier: String = "So I was just thinking about you and"
+    ) async throws -> KVCacheState {
+        let store = try currentModelStore()
+        let constants = try await store.constants()
+        let condModel = try await store.condStep()
+ 
+        // Step 1 — voice baseline
+        let voiceBase = try await prefillKVCache(
+            voiceData: voiceData,
+            textEmbeddings: [],
+            model: condModel,
+            voiceOnlyCache: nil
+        )
+ 
+        // Step 2 — inject carrier text tokens on top
+        let (normalizedCarrier, _) = normalizeText(carrier)
+        let tokenIds = constants.tokenizer.encode(normalizedCarrier)
+        let textEmbeddings = embedTokens(tokenIds, constants: constants)
+ 
+        let warmCache = try await prefillKVCache(
+            voiceData: voiceData,
+            textEmbeddings: textEmbeddings,
+            model: condModel,
+            voiceOnlyCache: voiceBase
+        )
+ 
+        return warmCache
+    }
+ 
     /// Result of streaming synthesis — audio + updated KV state for next chunk.
     public struct StreamingSynthesisResult: Sendable {
         /// Audio buffer ready to play (48kHz, float32)
