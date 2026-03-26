@@ -528,7 +528,14 @@ public struct PocketTtsSynthesizer {
             sequence = try createSequenceFromLatent(latent)
         }
  
-        if deEss { applyDeEssing(&allSamples) }
+        if deEss {
+            AudioPostProcessor.applyTtsPostProcessing(
+                &allSamples,
+                sampleRate: Float(PocketTtsConstants.audioSampleRate),
+                deEssAmount: -3.0,
+                smoothing: false
+            )
+        }
  
         let audioData = try AudioWAV.data(
             from: allSamples,
