@@ -130,19 +130,11 @@ public actor PocketTtsManager {
         carrier: String = "So I was just thinking about you and"
     ) async throws -> PocketTtsSynthesizer.KVCacheState {
         return try await PocketTtsSynthesizer.withModelStore(modelStore) {
-            let constants = try await modelStore.constants()
-            let condModel = try await modelStore.condStep()
-            let voiceBase = try await PocketTtsSynthesizer.buildVoiceCache(voiceData: voiceData)
-            let (normalizedCarrier, _) = PocketTtsSynthesizer.normalizeText(carrier)
-            let tokenIds = constants.tokenizer.encode(normalizedCarrier)
-            let textEmbeddings = PocketTtsSynthesizer.embedTokens(tokenIds, constants: constants)
-            let warmCache = try await PocketTtsSynthesizer.prefillKVCache(
+            let warmCache = try await PocketTtsSynthesizer.buildWarmCache(
                 voiceData: voiceData,
-                textEmbeddings: textEmbeddings,
-                model: condModel,
-                voiceOnlyCache: voiceBase
+                carrier: carrier
             )
-            print("🔥 Warm cache built — '\(normalizedCarrier)'")
+            print("🔥 Warm cache built with carrier")
             return warmCache
         }
     }
