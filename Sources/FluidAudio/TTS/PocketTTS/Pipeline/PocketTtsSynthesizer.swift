@@ -406,7 +406,7 @@ public struct PocketTtsSynthesizer {
     /// Audio is discarded. Only the KV state is returned.
     public static func buildWarmCache(
         voiceData: PocketTtsVoiceData,
-        carrier: String = "So I was just thinking about you and"
+        carrier: String = "Testing one two three four five."
     ) async throws -> KVCacheState {
         let store = try currentModelStore()
         let constants = try await store.constants()
@@ -474,16 +474,26 @@ public struct PocketTtsSynthesizer {
         var mimiState = try loadMimiInitialState(from: repoDir)
         let bosEmb = try createBosEmbedding(constants.bosEmbedding)
  
-        // Use conversation cache if available, else warm cache
-        // conversationCache = everything said so far in this call
-        // warmCache = carrier sentence baked in during ringing
-        let baseCache = conversationCache ?? warmCache
+        // Cap KV cache — reset to warmCache if position exceeds limit
+        // KV cache max is 512. At ~15 tokens/chunk, 20 chunks = 300 tokens.
+        // Reset at 220 to stay safe and keep prefill fast.
+        let kvCacheLimit = 220
+        let baseCache: KVCacheState
+        if let conv = conversationCache,
+           conv.positions[0][0].intValue < kvCacheLimit {
+            baseCache = conv
+        } else {
+            if conversationCache != nil {
+                print("⚠️ Streaming: KV cache reset — position limit reached")
+            }
+            baseCache = warmCache
+        }
  
         let (normalizedText, framesAfterEos) = normalizeText(text)
         let tokenIds = constants.tokenizer.encode(normalizedText)
         let textEmbeddings = embedTokens(tokenIds, constants: constants)
  
-        // Prefill: inject this chunk's text on top of conversation history
+        // Prefill: inject only THIS chunk's text tokens on top of base cache
         var kvState = try await prefillKVCache(
             voiceData: voiceData,
             textEmbeddings: textEmbeddings,
