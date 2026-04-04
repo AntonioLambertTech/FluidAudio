@@ -4,7 +4,7 @@ import OSLog
 
 /// A high-level streaming ASR manager that provides a simple API for real-time transcription
 /// Similar to Apple's SpeechAnalyzer, it handles audio conversion and buffering automatically
-public actor StreamingAsrManager {
+public actor StreamingAsrManager: @unchecked Sendable{
     private let logger = AppLogger(category: "StreamingASR")
     private let audioConverter: AudioConverter = AudioConverter()
     private let config: StreamingAsrConfig
